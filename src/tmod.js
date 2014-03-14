@@ -12,6 +12,7 @@ var uglifyjs = require('./uglify.js');
 var stdout = require('./stdout.js');
 var watch = require('./watch.js');
 var path = require('./path.js');
+var _ = require('underscore');
 
 var fs = require('fs');
 var vm = require('vm');
@@ -158,7 +159,7 @@ module.exports = {
 
         json.dependencies.tmodjs = '~' + version;
 
-        
+
         // 默认配置 优先级：0
         for (name in defaults) {
             config[name] = defaults[name];
@@ -169,7 +170,7 @@ module.exports = {
         for (name in json['tmodjs-config']) {
             config[name] = json['tmodjs-config'][name];
         }
-        
+
 
         // 用户配置 优先级：2
         for (name in options) {
@@ -209,7 +210,7 @@ module.exports = {
 
         var text = JSON.stringify(json, null, 4);
 
-        
+
         fs.writeFileSync(file, text, 'utf-8');
 
         return file;
@@ -266,7 +267,7 @@ module.exports = {
     _fsRead: function (file, charset) {
         if (fs.existsSync(file)) {
             return fs.readFileSync(file, charset || 'utf-8');
-        }  
+        }
     },
 
 
@@ -298,7 +299,7 @@ module.exports = {
             }
 
             var files = fs.readdirSync(dir);
-            
+
             if (!files.length) {
                 fs.rmdirSync(dir);
                 return;
@@ -350,7 +351,7 @@ module.exports = {
         if (data.version) {
             newText = '/*v:' + data.version + '*/';
         }
-        
+
         return js.replace(/^\/\*TMODJS\:[\w\W]*?\*\//, newText);
     },
 
@@ -373,9 +374,9 @@ module.exports = {
         code = "/*! <DEBUG:" + error.id + '> */\n' + code;
 
         this._fsWrite(debugFile, code, this.options.charset);
-        
+
         // 启动子进程进行调试，从根本上避免影响当前进程
-        
+
         exec('node ' + debugFile, {timeout: 0}, function (error, stdout, stderr) {
             var message = error ? error.message : '';
             message = message
@@ -478,14 +479,14 @@ module.exports = {
             code = that._removeMetadata(code);
             combo += code;
 
-            files.push(id); 
+            files.push(id);
         });
 
         mod = this._buildRuntime(combo, {
             debug: this.options.debug,
             build: build
         });
-        
+
 
         // 广播：合并事件
         this.emit('combo', {
@@ -541,7 +542,7 @@ module.exports = {
                     }
 
                 } else if (/updated|create/.test(type)) {
-                    
+
                     this.emit('change', {
                         id: this._toId(target),
                         sourceFile: target
@@ -580,7 +581,7 @@ module.exports = {
         var target = file
         .replace(EXTNAME_RE, '.js')
         .replace(this.base, this.output);
-        
+
         var mod = this._getCache(file, 'output');
         var modObject = {};
         var metadata = {};
@@ -643,7 +644,7 @@ module.exports = {
 
 
         try {
-            
+
             // 编译模板
             if (isChange) {
                 modObject = template.AOTcompile(id, source, {
@@ -659,7 +660,7 @@ module.exports = {
 
         } catch (e) {
             errorInfo = e;
-            
+
         }
 
 
@@ -683,7 +684,7 @@ module.exports = {
                     uglifyjs.minify(target);
                 }
             }
-            
+
         }
 
 
@@ -717,11 +718,11 @@ module.exports = {
             requires: modObject.requires || []
         };
 
-        
+
         if (error) {
 
             if (errorInfo.source) {
-                
+
                 // 规范错误，模板编译器通常能够给出错误源
 
                 this.emit('compileError', errorInfo);
@@ -762,7 +763,7 @@ module.exports = {
                 }.bind(this));
             }
 
-            
+
         } else {
 
             // 模板编译成功事件
@@ -779,7 +780,7 @@ module.exports = {
 
             // 缓存源文件
             this._setCache(file, 'source', source);
-            
+
         }
 
 
@@ -788,7 +789,7 @@ module.exports = {
             return false;
         } else {
             return compileInfo;
-        } 
+        }
     },
 
 
@@ -835,7 +836,7 @@ module.exports = {
 
                         }
                     }
-                    
+
                 });
             };
 
@@ -891,7 +892,7 @@ module.exports = {
                 return cache;
             } else if (cache) {
                 return cache[name];
-            } 
+            }
         }
     },
 
@@ -947,13 +948,16 @@ module.exports = {
         var bo = this.base === this.output;
 
         var walk = function (dir) {
-            
+
             if (!bo && dir === that.output) {
                 return;
             }
 
+            if(!that.filterCompileFolders(dir))
+              return;
+
             var dirList = fs.readdirSync(dir);
-            
+
             dirList.forEach(function (item) {
 
                 if (fs.statSync(dir + '/' + item).isDirectory()) {
@@ -962,7 +966,7 @@ module.exports = {
                     var source = fs.readFileSync(dir + '/' + item, charset);
                     that._setCache(dir + '/' + item, 'source', source);
                 }
-                
+
             });
         };
 
@@ -983,7 +987,7 @@ module.exports = {
         if (options.helpers) {
 
             var helpersFile = path.resolve(this.base, options.helpers);
-            
+
             if (fs.existsSync(helpersFile)) {
 
                 this._helpersCode = fs.readFileSync(helpersFile, 'utf-8');
@@ -1020,7 +1024,7 @@ module.exports = {
                 process.exit(1);
 
             }
-        }  
+        }
     },
 
 
@@ -1038,16 +1042,26 @@ module.exports = {
 
     },
 
+    filterCompileFolders: function(folderPath) {
+      var obj = this;
+
+      var filterFolder = obj.options.exclude_folders;
+
+      if(filterFolder && _.indexOf(filterFolder, folderPath.replace(this.base, '')) > -1) {
+        return false;
+      }
+
+      return obj;
+    },
+
 
     init: function (input, options) {
 
         stdout('[inverse]TmodJS[/inverse] - Template Compiler' + '\n');
-        stdout('[grey]http://aui.github.io/tmodjs[/grey]\n');
 
 
         // 模板项目路径
         this.base = path.resolve(input);
-
 
         // 项目配置选项
         this.options = options = this.getUserConfig(options);
@@ -1076,7 +1090,6 @@ module.exports = {
         // 初始化事件系统
         events.EventEmitter.call(this);
 
-
         // 初始化 watch 事件，插入兼容钩子
         this.on('newListener', function (event, listener) {
 
@@ -1084,10 +1097,14 @@ module.exports = {
 
                 watch(this.base, function (data) {
                     this.emit('watch', data);
-                }.bind(this), function (name) {
+                }.bind(this), function (folderPath) {
+                    if(!this.filterCompileFolders(folderPath))
+                      return;
 
+                    var name = path.basename(folderPath);
+                    // console.log(folderPath, !FILTER_RE.test(name) && folderPath !== this.output);
                     // 排除“.”、“_”开头或者非英文命名的子目录
-                    return !FILTER_RE.test(name) && name !== this.output;
+                    return !FILTER_RE.test(name) && folderPath !== this.output;
 
                 }.bind(this), fs);
 
@@ -1126,7 +1143,7 @@ module.exports = {
             } else {
                 stdout('[grey]•[/grey] ');
             }
-            
+
             stdout(data.id);
         });
 

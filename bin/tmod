@@ -220,11 +220,11 @@ TmodJS.on('compileError', function (data) {
 });
 
 
-userConfig = TmodJS.saveUserConfig();
+// userConfig = TmodJS.saveUserConfig();
 
 
 if (isEditConfig) {
-    
+
     process.stdout.write('Open: ' + userConfig + '\n');
 
     exec(
@@ -239,5 +239,5 @@ if (isEditConfig) {
     if (isWatch) {
         TmodJS.watch();
     }
-    
+
 }
