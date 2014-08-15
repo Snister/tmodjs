@@ -14,90 +14,91 @@ var watchList = {};
 var timer = {};
 
 var walk = function (dir, callback, filter) {
-    fs.readdirSync(dir).forEach(function (item) {
-        var fullname = dir + '/' + item;
-        if (fs.statSync(fullname).isDirectory()){
-            if (!filter(fullname)){
-                return;
-            }
-            watch(fullname, callback, filter);
-            walk(fullname, callback, filter);
-        }
-    });
+  fs.readdirSync(dir).forEach(function (item) {
+    var fullname = dir + '/' + item;
+    if (fs.statSync(fullname).isDirectory()){
+      if (!filter(fullname)){
+        return;
+      }
+      // console.log('watching: ' + fullname);
+      watch(fullname, callback, filter);
+      walk(fullname, callback, filter);
+    }
+  });
 };
 
 
 var watch = function (parent, callback, filter) {
 
-    if (watchList[parent]) {
-        watchList[parent].close();
+  if (watchList[parent]) {
+    watchList[parent].close();
+  }
+
+  watchList[parent] = fs.watch(parent, function (event, filename) {
+
+    var fullname = parent + '/' + filename;
+    var type;
+    var fstype;
+
+    if (!filter(filename)) {
+      return;
     }
 
-    watchList[parent] = fs.watch(parent, function (event, filename) {
+    // 检查文件、目录是否存在
+    if (!fs.existsSync(fullname)) {
 
-        var fullname = parent + '/' + filename;
-        var type;
-        var fstype;
+      // 如果目录被删除则关闭监视器
+      if (watchList[fullname]) {
+        fstype = 'directory';
+        watchList[fullname].close();
+        delete watchList[fullname];
+      } else {
+        fstype = 'file';
+      }
 
-        if (!filter(filename)) {
-            return;
-        }
+      type = 'delete';
 
-        // 检查文件、目录是否存在
-        if (!fs.existsSync(fullname)) {
+    } else {
 
-            // 如果目录被删除则关闭监视器
-            if (watchList[fullname]) {
-                fstype = 'directory';
-                watchList[fullname].close();
-                delete watchList[fullname];
-            } else {
-                fstype = 'file';
-            }
+      // 文件
+      if (fs.statSync(fullname).isFile()) {
 
-            type = 'delete';
+        fstype = 'file';
+        type = event == 'rename' ? 'create' : 'updated';
 
-        } else {
+      // 文件夹
+      } else if (event === 'rename') {
 
-            // 文件
-            if (fs.statSync(fullname).isFile()) {
+        fstype = 'directory';
+        type = 'create';
 
-                fstype = 'file';
-                type = event == 'rename' ? 'create' : 'updated';
+        watch(fullname, callback, filter);
+        walk(fullname, callback, filter);
+      }
 
-            // 文件夹
-            } else if (event === 'rename') {
+    }
 
-                fstype = 'directory';
-                type = 'create';
-
-                watch(fullname, callback, filter);
-                walk(fullname, callback, filter);
-            }
-
-        }
-
-        var eventData = {
-            type: type,
-            target: filename,
-            parent: parent,
-            fstype: fstype
-        };
+    var eventData = {
+      type: type,
+      target: filename,
+      parent: parent,
+      fstype: fstype
+    };
 
 
-        if (/windows/i.test(os.type())) {
-            // window 下 nodejs fs.watch 方法尚未稳定
-            clearTimeout(timer[fullname]);
-            timer[fullname] = setTimeout(function() {
-                callback(eventData);
-            }, 16);
+    if (/windows/i.test(os.type())) {
+      // window 下 nodejs fs.watch 方法尚未稳定
+      clearTimeout(timer[fullname]);
+      timer[fullname] = setTimeout(function() {
+        callback(eventData);
+      }, 16);
 
-        } else {
-            callback(eventData);
-        }
+    } else {
+      callback(eventData);
+    }
 
 
-    });
+  });
 
 };
 
@@ -109,14 +110,14 @@ var watch = function (parent, callback, filter) {
  */
 module.exports = function (dir, callback, filter) {
 
-    // 排除“.”、“_”开头或者非英文命名的目录
-    var FILTER_RE = /[^\w\.\-$]/;
-    filter = filter || function (name) {
-        return !FILTER_RE.test(name);
-    };
+  // 排除“.”、“_”开头或者非英文命名的目录
+  var FILTER_RE = /[^\w\.\-$]/;
+  filter = filter || function (name) {
+    return !FILTER_RE.test(name);
+  };
 
-    //if (filter(dir)) {
-        watch(dir, callback, filter);
-        walk(dir, callback, filter);
-    //}
+  //if (filter(dir)) {
+    watch(dir, callback, filter);
+    walk(dir, callback, filter);
+  //}
 };
