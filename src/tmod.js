@@ -10,6 +10,7 @@ var version = require('../package.json').version;
 var template = require('./AOTcompile.js');
 var uglifyjs = require('./uglify.js');
 var stdout = require('./stdout.js');
+var chalk = require('chalk');
 var watch = require('./watch.js');
 var path = require('./path.js');
 var _ = require('underscore');
@@ -1062,7 +1063,12 @@ module.exports = {
 
     this.on('watchStart', function () {
       setTimeout(function () {
-        stdout('\n[green]Watching..[/green] [grey](quit watch: control + c)[/grey]\n\n');
+        console.log(  
+          '\n\n',
+          chalk.white.bgGreen.bold('Watching..'), 
+          chalk.green('(quit watch: control + c)'),
+          '\n\n'
+        );
       }, 140);
     });
 
