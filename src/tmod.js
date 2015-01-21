@@ -184,7 +184,6 @@ module.exports = {
 
     this._fixConfig(config);
 
-
     return config;
   },
 
@@ -391,14 +390,12 @@ module.exports = {
 
   // 编译运行时
   _buildRuntime: function (templates, metadata) {
-
     metadata = metadata || {};
 
     var placeholder = '/*#templates#*/';
     var output = path.join(this.output, RUNTIME + '.js');
     var data = this._runtime;
     var runtime;
-
 
     if (!data) {
 
@@ -446,6 +443,9 @@ module.exports = {
 
     }
 
+    // console.log(runtime)
+    // return
+
     this._fsWrite(output, runtime, this.options.charset);
 
     if (this.options.debug || !this.options.minify) {
@@ -457,6 +457,50 @@ module.exports = {
     return runtime;
   },
 
+  // 打包模板
+  _combo: function () {
+
+    var files = [];
+    var mod = null;
+    var combo = '';
+    var cache = this._getCache();
+    var code = '';
+    var build = Date.now();
+
+    for (var i in cache) {
+
+      code = cache[i].output;
+      // console.log(code.output)
+      // return
+      code = this._removeMetadata(code);
+      combo += code;
+
+      files.push(i);
+    }
+
+    mod = this._buildRuntime(combo, {
+      debug: this.options.debug,
+      build: build
+    });
+    
+
+    // 广播：合并事件
+    this.emit('combo', {
+
+      // 编译时间
+      build: build,
+
+      // 打包的代码
+      output: mod,
+
+      // 输出的文件路径
+      outputFile: path.join(this.output, RUNTIME + '.js'),
+
+      // 被合并的文件列表
+      sourcefiles: files
+
+    });
+  },
 
   /**
    * 监听模板的修改进行即时编译
@@ -488,6 +532,9 @@ module.exports = {
 
           this._removeCache(target);
 
+          if (this.options.combo) {
+            this._combo();
+          }
 
         } else if (/updated|create/.test(type)) {
 
@@ -496,7 +543,11 @@ module.exports = {
             sourceFile: target
           });
 
-          this._compile(fullname);
+          if(this._compile(fullname)) {
+            if (this.options.combo) {
+              this._combo();
+            }
+          }
 
         }
       }
@@ -785,7 +836,6 @@ module.exports = {
       };
 
       walk(typeof file === 'string' ? [file] : file);
-
     } else {
 
       var list = this._getCacheKeys();
@@ -802,6 +852,9 @@ module.exports = {
 
     }
 
+    if (!error && this.options.combo) {
+      this._combo();
+    }
 
     this.emit('compileEnd', {
       error: error,
@@ -898,7 +951,7 @@ module.exports = {
       var dirList = fs.readdirSync(dir);
 
       dirList.forEach(function (item) {
-
+        // console.log(dir + '/' + item);
         if (fs.statSync(dir + '/' + item).isDirectory()) {
           walk(dir + '/' + item);
         } else if (that._filter(item)) {
@@ -1021,16 +1074,12 @@ module.exports = {
     this._initEngine();
 
 
-    // 初始化缓存系统
-    this._initCache();
-
-
-    // 输出运行时
-    this._buildRuntime();
-
-
     // 初始化事件系统
     events.EventEmitter.call(this);
+
+
+    // 初始化缓存系统
+    this._initCache();
 
     // 初始化 watch 事件，插入兼容钩子
     this.on('newListener', function (event, listener) {
@@ -1118,6 +1167,9 @@ module.exports = {
 
       stdout('[red]' + data.message + '[/red]\n\n');
     });
+
+    // 输出运行时
+    this._buildRuntime();
 
   }
 
